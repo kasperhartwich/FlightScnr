@@ -1064,6 +1064,13 @@ void computeFlightDetailLayout(const FlightDetailStrings& s, int logo_h, int pho
     const int min_text_y = top + art_h + kPhotoBelowGap;
     y_start = y_bottom < min_text_y ? min_text_y : y_bottom;
     refineTextMetrics(y_start, &pre_type_h, &type_block_h, &text_h);
+    // Taller panels leave a gap between the photo and the text block; split
+    // it so the photo sits halfway down instead of hugging the top chord.
+    const int slack = y_start - min_text_y;
+    if (slack > 0) {
+      layout->y_photo += slack / 2;
+      layout->y_photo_credit += slack / 2;
+    }
   } else {
     // No photo yet: keep logo + text as one centered block (no empty mid gap).
     const int art_h = logo_h > 0 ? logo_h + kLogoGap : 0;

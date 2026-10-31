@@ -89,9 +89,10 @@ To change other settings later: same URL, **Save**. To wipe all Wi‑Fi networks
 
 | Item          | Details                                                                                                                             |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| **Boards**    | [LilyGO T-Encoder Pro](https://www.lilygo.cc/zo4apl) (390×390 AMOLED) or [Waveshare ESP32-S3-Knob-Touch-LCD-1.8](https://www.waveshare.com/wiki/ESP32-S3-Knob-Touch-LCD-1.8) (360×360 IPS). Board is selected at **compile time**. |
+| **Boards**    | [LilyGO T-Encoder Pro](https://www.lilygo.cc/zo4apl) (390×390 AMOLED), [Waveshare ESP32-S3-Knob-Touch-LCD-1.8](https://www.waveshare.com/wiki/ESP32-S3-Knob-Touch-LCD-1.8) (360×360 IPS) or [Waveshare ESP32-S3-Touch-AMOLED-1.75](https://www.waveshare.com/wiki/ESP32-S3-Touch-AMOLED-1.75) (466×466 AMOLED). Board is selected at **compile time**. |
 | **T-Encoder** | Auto-detects DXQ120 (SH8601) or TFD12 (CO5300) panel at boot; piezo beep + knob push button                                          |
 | **Waveshare** | ST77916 + CST816; PWM backlight; rotary encoder only (no push button — Wi‑Fi wipe via web UI); no piezo                             |
+| **Waveshare AMOLED 1.75** | [ESP32-S3-Touch-AMOLED-1.75](https://www.waveshare.com/wiki/ESP32-S3-Touch-AMOLED-1.75) (466×466 AMOLED): CO5300 + CST9217; no encoder, the BOOT button steps the radar range and taps replace the knob elsewhere; no piezo. Builds on the pioarduino platform (Arduino core 3) |
 | **Enclosure** | [MakerWorld](https://makerworld.com/en/models/2902669-flightscnr-live-ads-b-traffic-sweeping-radar#profileId-3245055) (T-Encoder; not in repo) |
 
 
@@ -103,6 +104,7 @@ Requires [PlatformIO](https://platformio.org/).
 pio run -t upload                         # auto: USB heuristic / last board / T-Encoder default
 pio run -e tencoder-pro -t upload         # LilyGO T-Encoder Pro
 pio run -e waveshare-knob-18 -t upload   # Waveshare Knob Touch LCD 1.8
+pio run -e waveshare-amoled-175 -t upload # Waveshare ESP32-S3-Touch-AMOLED-1.75
 # or: set FLIGHTSCNR_BOARD=waveshare-knob-18
 ```
 

@@ -197,6 +197,10 @@ void IRAM_ATTR onEncoderIsr() {
 #endif
 
 void initEncoder() {
+#if !FLIGHTSCNR_HAS_ENCODER
+  Serial.println("Encoder: none on this board (BOOT button steps range)");
+  return;
+#endif
   pinMode(config::kKnobPinA, INPUT_PULLUP);
   pinMode(config::kKnobPinB, INPUT_PULLUP);
 
@@ -284,7 +288,163 @@ void initTouchCst816() {
   Serial.println("CST816 touch ready");
 }
 
+#if defined(FLIGHTSCNR_BOARD_WAVESHARE_AMOLED_175)
+void mapTouchToDisplay(int16_t* x, int16_t* y);
+void finishTouchGesture();
+
+// --- CST9217 (Hynitron) over Wire. Minimal port of SensorLib 0.3.1's
+// TouchDrvCST92xx: reset, read attributes in command mode, then poll the
+// 0xD000 report and acknowledge it. The INT line pulses once per report
+// rather than staying low while touched, so a release is "no pulse lately".
+constexpr uint16_t kCst92ReadCommand = 0xD000;
+constexpr uint8_t kCst92Ack = 0xAB;
+constexpr uint8_t kCst92MaxFingers = 2;
+constexpr unsigned long kCst92ReleaseAfterMs = 80;
+volatile unsigned long s_cst92_last_irq_ms = 0;
+volatile bool s_cst92_irq_pending = false;
+
+void IRAM_ATTR onCst9217Interrupt() {
+  s_cst92_last_irq_ms = millis();
+  s_cst92_irq_pending = true;
+}
+
+bool cst92WriteThenRead(const uint8_t* w, size_t wlen, uint8_t* r, size_t rlen) {
+  Wire.beginTransmission(CST9217_SLAVE_ADDRESS);
+  Wire.write(w, wlen);
+  // STOP between the phases: SensorLib does the same, and the CST92xx report
+  // read does not answer a repeated start.
+  if (Wire.endTransmission(true) != 0) {
+    return false;
+  }
+  const size_t got = Wire.requestFrom(static_cast<uint8_t>(CST9217_SLAVE_ADDRESS),
+                                      static_cast<uint8_t>(rlen));
+  if (got < rlen) {
+    return false;
+  }
+  for (size_t i = 0; i < rlen; ++i) {
+    r[i] = static_cast<uint8_t>(Wire.read());
+  }
+  return true;
+}
+
+bool cst92Write(const uint8_t* w, size_t wlen) {
+  Wire.beginTransmission(CST9217_SLAVE_ADDRESS);
+  Wire.write(w, wlen);
+  return Wire.endTransmission() == 0;
+}
+
+void initTouchCst9217() {
+  Wire.begin(IIC_SDA, IIC_SCL, 400000);
+  pinMode(TOUCH_RST, OUTPUT);
+  digitalWrite(TOUCH_RST, LOW);
+  delay(10);
+  digitalWrite(TOUCH_RST, HIGH);
+  delay(30);  // exit boot mode
+
+  // Command mode: check code, resolution, chip type.
+  const uint8_t enter_cmd[2] = {0xD1, 0x01};
+  cst92Write(enter_cmd, 2);
+  delay(10);
+  uint8_t buf[8] = {0};
+  const uint8_t rd_check[2] = {0xD1, 0xFC};
+  cst92WriteThenRead(rd_check, 2, buf, 4);
+  const uint32_t checkcode = (static_cast<uint32_t>(buf[3]) << 24) |
+                             (static_cast<uint32_t>(buf[2]) << 16) |
+                             (static_cast<uint32_t>(buf[1]) << 8) | buf[0];
+  const uint8_t rd_res[2] = {0xD1, 0xF8};
+  cst92WriteThenRead(rd_res, 2, buf, 4);
+  const int res_x = (buf[1] << 8) | buf[0];
+  const int res_y = (buf[3] << 8) | buf[2];
+  const uint8_t rd_type[2] = {0xD2, 0x04};
+  cst92WriteThenRead(rd_type, 2, buf, 4);
+  const uint16_t chip = static_cast<uint16_t>((buf[3] << 8) | buf[2]);
+
+  if ((checkcode & 0xFFFF0000u) != 0xCACA0000u || (chip != 0x9217 && chip != 0x9220)) {
+    Serial.printf("CST9217 touch init failed (check 0x%08lx chip 0x%04x) — BOOT button only\n",
+                  static_cast<unsigned long>(checkcode), chip);
+    s_touch_ready = false;
+    return;
+  }
+  Serial.printf("CST%04x touch ready (%dx%d)\n", chip, res_x, res_y);
+
+  pinMode(TOUCH_INT, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(TOUCH_INT), onCst9217Interrupt, FALLING);
+  s_touch_ready = true;
+}
+
+/** Read the first finger from the 0xD000 report. Returns false when none. */
+bool cst92ReadPoint(int16_t* x, int16_t* y) {
+  uint8_t read_buffer[kCst92MaxFingers * 5 + 5] = {0};
+  const uint8_t rd[2] = {static_cast<uint8_t>(kCst92ReadCommand >> 8),
+                         static_cast<uint8_t>(kCst92ReadCommand & 0xFF)};
+  if (!cst92WriteThenRead(rd, 2, read_buffer, sizeof(read_buffer))) {
+    return false;
+  }
+  const uint8_t ack[3] = {rd[0], rd[1], kCst92Ack};
+  cst92Write(ack, 3);
+  if (read_buffer[6] != kCst92Ack) {
+    return false;
+  }
+  const uint8_t num = read_buffer[5] & 0x7F;
+  if (num == 0 || num > kCst92MaxFingers) {
+    return false;
+  }
+  const uint8_t* d = read_buffer;  // first finger
+  const uint8_t pressed = d[0] & 0x0F;
+  if (pressed != 0x06) {
+    return false;
+  }
+  *x = static_cast<int16_t>((d[1] << 4) | (d[3] >> 4));
+  *y = static_cast<int16_t>((d[2] << 4) | (d[3] & 0x0F));
+  return true;
+}
+
+void pollTouchCst9217() {
+  int16_t x = 0;
+  int16_t y = 0;
+  bool down = false;
+  if (s_cst92_irq_pending) {
+    s_cst92_irq_pending = false;
+    down = cst92ReadPoint(&x, &y);
+  } else if (s_touch_was_down) {
+    // No new report: still down until the pulses stop.
+    down = (millis() - s_cst92_last_irq_ms) < kCst92ReleaseAfterMs;
+    x = s_touch_last_x;
+    y = s_touch_last_y;
+    if (down) {
+      return;  // nothing new to record
+    }
+  }
+
+  if (down && !s_touch_was_down) {
+    s_touch_start_x = x;
+    s_touch_start_y = y;
+    s_touch_last_x = x;
+    s_touch_last_y = y;
+    mapTouchToDisplay(&s_touch_start_x, &s_touch_start_y);
+    mapTouchToDisplay(&s_touch_last_x, &s_touch_last_y);
+    s_touch_tracking = true;
+    hardware::buzzerClick();
+    Serial.printf("[touch] down raw=%d,%d map=%d,%d\n", x, y, s_touch_start_x,
+                  s_touch_start_y);
+  } else if (down && s_touch_tracking) {
+    s_touch_last_x = x;
+    s_touch_last_y = y;
+    mapTouchToDisplay(&s_touch_last_x, &s_touch_last_y);
+  } else if (!down && s_touch_was_down && s_touch_tracking) {
+    finishTouchGesture();
+    s_touch_tracking = false;
+    Serial.printf("[touch] up map=%d,%d\n", s_touch_last_x, s_touch_last_y);
+  }
+  s_touch_was_down = down;
+}
+#endif  // FLIGHTSCNR_BOARD_WAVESHARE_AMOLED_175
+
 void initTouch() {
+#if defined(FLIGHTSCNR_BOARD_WAVESHARE_AMOLED_175)
+  initTouchCst9217();
+  return;
+#endif
   if (hardware::panelUsesCst816()) {
     initTouchCst816();
   } else {
@@ -295,7 +455,14 @@ void initTouch() {
 }
 
 void mapTouchToDisplay(int16_t* x, int16_t* y) {
-#if defined(FLIGHTSCNR_BOARD_WAVESHARE_KNOB_18)
+#if defined(FLIGHTSCNR_BOARD_WAVESHARE_AMOLED_175)
+#if FLIGHTSCNR_TOUCH_MIRROR_X
+  *x = static_cast<int16_t>(LCD_WIDTH - 1 - *x);
+#endif
+#if FLIGHTSCNR_TOUCH_MIRROR_Y
+  *y = static_cast<int16_t>(LCD_HEIGHT - 1 - *y);
+#endif
+#elif defined(FLIGHTSCNR_BOARD_WAVESHARE_KNOB_18)
   // Keep touch in the same orientation as FLIGHTSCNR_DISPLAY_ROTATION.
   const int16_t raw_x = *x;
   const int16_t raw_y = *y;
@@ -449,6 +616,10 @@ void pollTouch() {
     return;
   }
 
+#if defined(FLIGHTSCNR_BOARD_WAVESHARE_AMOLED_175)
+  pollTouchCst9217();
+  return;
+#endif
   if (hardware::panelUsesCst816()) {
     pollTouchCst816();
   } else {

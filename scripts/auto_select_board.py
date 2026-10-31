@@ -23,11 +23,13 @@ LAST_BOARD_PATH = PIO_DIR / "last_board"
 
 BOARD_TENCODER = "tencoder-pro"
 BOARD_WAVESHARE = "waveshare-knob-18"
-VALID_BOARDS = {BOARD_TENCODER, BOARD_WAVESHARE}
+BOARD_WAVESHARE_AMOLED = "waveshare-amoled-175"
+VALID_BOARDS = {BOARD_TENCODER, BOARD_WAVESHARE, BOARD_WAVESHARE_AMOLED}
 
 BOARD_MACROS = {
     BOARD_TENCODER: "FLIGHTSCNR_BOARD_TENCODER_PRO",
     BOARD_WAVESHARE: "FLIGHTSCNR_BOARD_WAVESHARE_KNOB_18",
+    BOARD_WAVESHARE_AMOLED: "FLIGHTSCNR_BOARD_WAVESHARE_AMOLED_175",
 }
 
 
@@ -45,6 +47,9 @@ def _normalize(name: str | None) -> str | None:
         "waveshare-knob-1.8": BOARD_WAVESHARE,  # legacy alias
         "knob-1.8": BOARD_WAVESHARE,
         "knob-18": BOARD_WAVESHARE,
+        "waveshare-amoled-175": BOARD_WAVESHARE_AMOLED,
+        "amoled-175": BOARD_WAVESHARE_AMOLED,
+        "amoled-1.75": BOARD_WAVESHARE_AMOLED,
     }
     resolved = aliases.get(name, name)
     return resolved if resolved in VALID_BOARDS else None

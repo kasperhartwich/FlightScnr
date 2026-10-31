@@ -1444,7 +1444,13 @@ void handleInput() {
       return;
     }
     if (inputConsumeKnobTap()) {
+#if FLIGHTSCNR_HAS_ENCODER
       openFlightDetailFromRadar(0, 0, false);
+#else
+      // No encoder: the button steps the range; taps open flight detail.
+      onRangeStep(1);
+      hardware::buzzerClick();
+#endif
       return;
     }
     const int8_t enc = inputConsumeEncoderDelta();
@@ -1456,7 +1462,7 @@ void handleInput() {
   }
 
   if (g_screen == AppScreen::FlightDetail) {
-#if !FLIGHTSCNR_HAS_KNOB_BUTTON
+#if !FLIGHTSCNR_HAS_KNOB_BUTTON || !FLIGHTSCNR_HAS_ENCODER
     // No knob button — tap advances to the next aircraft (same as encoder +1).
     if (inputConsumeScreenTap(nullptr, nullptr)) {
       noteSecondaryActivity();
@@ -1482,7 +1488,7 @@ void handleInput() {
       }
       // Waveshare has no knob button — screen tap advances the focused row.
       if (inputConsumeKnobTap()
-#if !FLIGHTSCNR_HAS_KNOB_BUTTON
+#if !FLIGHTSCNR_HAS_KNOB_BUTTON || !FLIGHTSCNR_HAS_ENCODER
           || inputConsumeScreenTap(nullptr, nullptr)
 #endif
       ) {
@@ -1497,7 +1503,7 @@ void handleInput() {
         hardware::buzzerClick();
       }
       if (inputConsumeKnobTap()
-#if !FLIGHTSCNR_HAS_KNOB_BUTTON
+#if !FLIGHTSCNR_HAS_KNOB_BUTTON || !FLIGHTSCNR_HAS_ENCODER
           || inputConsumeScreenTap(nullptr, nullptr)
 #endif
       ) {
@@ -1507,7 +1513,7 @@ void handleInput() {
         return;
       }
     }
-#if FLIGHTSCNR_HAS_KNOB_BUTTON
+#if FLIGHTSCNR_HAS_KNOB_BUTTON && FLIGHTSCNR_HAS_ENCODER
     // Discard stray taps on settings pages that do not use them.
 #else
     else {
@@ -1593,7 +1599,7 @@ void handleInput() {
       hardware::buzzerClick();
     }
     if (inputConsumeKnobTap()
-#if !FLIGHTSCNR_HAS_KNOB_BUTTON
+#if !FLIGHTSCNR_HAS_KNOB_BUTTON || !FLIGHTSCNR_HAS_ENCODER
         || inputConsumeScreenTap(nullptr, nullptr)
 #endif
     ) {
@@ -2028,6 +2034,15 @@ void setup() {
   services::disclaimer::bootLoad();
   services::ota_github::init();
 
+#if defined(FLIGHTSCNR_SEED_WIFI_SSID) && defined(FLIGHTSCNR_SEED_WIFI_PASS)
+  // Developer convenience: seed one network at build time when the store is
+  // empty, e.g. PLATFORMIO_BUILD_FLAGS='-DFLIGHTSCNR_SEED_WIFI_SSID=\"x\" ...'.
+  if (wifiNetsCount() == 0) {
+    if (wifiNetsAddOrUpdate(FLIGHTSCNR_SEED_WIFI_SSID, FLIGHTSCNR_SEED_WIFI_PASS)) {
+      Serial.printf("[wifi] seeded network %s from build flags\n", FLIGHTSCNR_SEED_WIFI_SSID);
+    }
+  }
+#endif
   if (wifiSetupConnect()) {
     services::clock::startNtp();
     services::tzlookup::init();

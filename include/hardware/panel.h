@@ -12,6 +12,8 @@ enum class PanelType : uint8_t {
   TfdCo5300 = 2,
   /** Waveshare ESP32-S3-Knob-Touch-LCD-1.8 — ST77916 + CST816. */
   WaveshareSt77916 = 3,
+  /** Waveshare ESP32-S3-Touch-AMOLED-1.75 — CO5300 + CST9217. */
+  WaveshareCo5300 = 4,
 };
 
 /**
@@ -24,7 +26,9 @@ void panelBootResolve();
 PanelType panelType();
 const char* panelTypeName();
 bool panelUsesCo5300();
-/** True when the board uses CST816 (TFD12 or Waveshare). */
+/** True when the board uses CST816 (TFD12 or Waveshare Knob). */
 bool panelUsesCst816();
+/** True when the board uses CST9217 (Waveshare AMOLED 1.75). */
+bool panelUsesCst9217();
 
 }  // namespace hardware

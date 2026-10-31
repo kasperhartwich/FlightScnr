@@ -64,9 +64,14 @@ constexpr unsigned long kKnobTapMinMs = 40UL;
  *  from triggering two transitions, e.g. clock→radar then radar→details). */
 constexpr unsigned long kSwipeNavDebounceMs = 300UL;
 
-// --- Rotary encoder ---
+// --- Rotary encoder (absent on the AMOLED 1.75 — see FLIGHTSCNR_HAS_ENCODER) ---
+#if FLIGHTSCNR_HAS_ENCODER
 constexpr gpio_num_t kKnobPinA = static_cast<gpio_num_t>(KNOB_DATA_A);
 constexpr gpio_num_t kKnobPinB = static_cast<gpio_num_t>(KNOB_DATA_B);
+#else
+constexpr gpio_num_t kKnobPinA = static_cast<gpio_num_t>(-1);
+constexpr gpio_num_t kKnobPinB = static_cast<gpio_num_t>(-1);
+#endif
 
 // --- Display size from selected board (compile-time) ---
 constexpr int kDisplayWidth = LCD_WIDTH;

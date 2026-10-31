@@ -5,7 +5,9 @@
 #include "hardware/panel.h"
 #include "hardware/pin_config.h"
 
-#if defined(FLIGHTSCNR_BOARD_WAVESHARE_KNOB_18)
+#if defined(FLIGHTSCNR_BOARD_WAVESHARE_AMOLED_175)
+#include "display/Arduino_CO5300.h"
+#elif defined(FLIGHTSCNR_BOARD_WAVESHARE_KNOB_18)
 #include "display/Arduino_ST77916.h"
 #include "boards/waveshare_st77916_init.h"
 #else
@@ -36,7 +38,13 @@ void displayInit() {
   s_bus = new Arduino_ESP32QSPI(LCD_CS, LCD_SCLK, LCD_SDIO0, LCD_SDIO1, LCD_SDIO2,
                                   LCD_SDIO3);
 
-#if defined(FLIGHTSCNR_BOARD_WAVESHARE_KNOB_18)
+#if defined(FLIGHTSCNR_BOARD_WAVESHARE_AMOLED_175)
+  // 466x466 CO5300; the panel's column memory starts LCD_COL_OFFSET px in.
+  s_panel = new Arduino_CO5300(s_bus, LCD_RST, 0, false, LCD_WIDTH, LCD_HEIGHT,
+                               LCD_COL_OFFSET, 0, 0, 0);
+  Arduino_TFT::setPixelAlign2(true);
+  Serial.println("Display: CO5300 (Waveshare AMOLED 1.75)");
+#elif defined(FLIGHTSCNR_BOARD_WAVESHARE_KNOB_18)
   // Knob 1.8 needs st77916_150-class init. Rotation comes from the board header
   // (USB/cable orientation); touch coordinates are remapped to match.
   s_panel =
