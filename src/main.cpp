@@ -3,6 +3,7 @@
  */
 
 #include <Arduino.h>
+#include <esp_task_wdt.h>
 #include <WiFi.h>
 
 #include <esp_heap_caps.h>
@@ -1993,7 +1994,21 @@ void setup() {
   // WiFi/lwIP tasks, can starve core 0's idle task past the 5s task-watchdog window
   // and reboot the device. We intentionally run heavy work there, so unsubscribe
   // core 0's idle task from the watchdog (core 1's loop watchdog stays active).
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && (ESP_ARDUINO_VERSION_MAJOR >= 3)
+  // Core 3 / IDF 5: disableCore0WDT() deletes the idle task from the TWDT but
+  // leaves its idle hook calling esp_task_wdt_reset(), which then logs
+  // "task not found" on every idle tick. Reconfigure the TWDT to watch only
+  // core 1's idle task instead (same intent, no spam).
+  {
+    esp_task_wdt_config_t wdt_cfg = {};
+    wdt_cfg.timeout_ms = 15000;
+    wdt_cfg.idle_core_mask = 1u << 1;
+    wdt_cfg.trigger_panic = true;
+    esp_task_wdt_reconfigure(&wdt_cfg);
+  }
+#else
   disableCore0WDT();
+#endif
 
   hardware::panelBootResolve();
   displayInit();

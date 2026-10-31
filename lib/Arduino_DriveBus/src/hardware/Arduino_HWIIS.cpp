@@ -9,6 +9,10 @@
  */
 #include "Arduino_HWIIS.h"
 
+// The legacy I2S driver config changed in Arduino core 3 / IDF 5 and this
+// bus is unused by FlightScnr, so it is compiled out there.
+#if !defined(ESP_ARDUINO_VERSION_MAJOR) || (ESP_ARDUINO_VERSION_MAJOR < 3)
+
 Arduino_HWIIS::Arduino_HWIIS(i2s_port_t iis_num, int8_t bclk, int8_t lrck, int8_t data)
     : _iis_num(iis_num), _bclk(bclk), _lrck(lrck), _data(data)
 {
@@ -141,3 +145,5 @@ bool Arduino_HWIIS::end()
     }
     return true;
 }
+
+#endif  // Arduino core < 3

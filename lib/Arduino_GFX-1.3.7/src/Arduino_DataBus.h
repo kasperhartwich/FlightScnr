@@ -6,6 +6,10 @@
 #define _ARDUINO_DATABUS_H_
 
 #include <Arduino.h>
+#if defined(ESP32)
+// Arduino core 3 no longer pulls the GPIO register struct in via Arduino.h.
+#include <soc/gpio_struct.h>
+#endif
 
 #define GFX_SKIP_OUTPUT_BEGIN -2
 #define GFX_NOT_DEFINED -1
@@ -132,7 +136,10 @@ typedef volatile ARDUINOGFX_PORT_t *PORTreg_t;
 #define INLINE inline
 #endif
 
-#if defined(ESP32) && (CONFIG_IDF_TARGET_ESP32S3)
+// IDF 4 only: these buses use private esp_lcd structs that changed in
+// Arduino core 3 / IDF 5 (same guard as upstream Arduino_GFX 1.4+).
+#if defined(ESP32) && (CONFIG_IDF_TARGET_ESP32S3) && \
+    ((!defined(ESP_ARDUINO_VERSION_MAJOR)) || (ESP_ARDUINO_VERSION_MAJOR < 3))
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_io_interface.h>
 #include <esp_pm.h>

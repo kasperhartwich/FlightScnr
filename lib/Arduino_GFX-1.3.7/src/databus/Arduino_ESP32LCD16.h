@@ -4,7 +4,10 @@
  */
 #include "Arduino_DataBus.h"
 
-#if defined(ESP32) && (CONFIG_IDF_TARGET_ESP32S3)
+// IDF 4 only: these buses use private esp_lcd structs that changed in
+// Arduino core 3 / IDF 5 (same guard as upstream Arduino_GFX 1.4+).
+#if defined(ESP32) && (CONFIG_IDF_TARGET_ESP32S3) && \
+    ((!defined(ESP_ARDUINO_VERSION_MAJOR)) || (ESP_ARDUINO_VERSION_MAJOR < 3))
 
 #ifndef _ARDUINO_ESP32LCD16_H_
 #define _ARDUINO_ESP32LCD16_H_

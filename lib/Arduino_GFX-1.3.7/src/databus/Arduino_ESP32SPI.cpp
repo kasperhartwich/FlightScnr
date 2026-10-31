@@ -113,7 +113,12 @@ static void _on_apb_change(void *arg, apb_change_ev_t ev_type, uint32_t old_apb,
   }
   else
   {
+    // Arduino core 3.3.6+ changed spiFrequencyToClockDiv(freq) to (spi, freq).
+#if defined(ESP_ARDUINO_VERSION) && (ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 6))
+    _spi->dev->clock.val = spiFrequencyToClockDiv(_spi, old_apb / ((_spi->dev->clock.clkdiv_pre + 1) * (_spi->dev->clock.clkcnt_n + 1)));
+#else
     _spi->dev->clock.val = spiFrequencyToClockDiv(old_apb / ((_spi->dev->clock.clkdiv_pre + 1) * (_spi->dev->clock.clkcnt_n + 1)));
+#endif
     SPI_MUTEX_UNLOCK();
   }
 }
@@ -158,10 +163,14 @@ bool Arduino_ESP32SPI::begin(int32_t speed, int8_t dataMode)
   _speed = (speed == GFX_NOT_DEFINED) ? SPI_DEFAULT_FREQ : speed;
   _dataMode = (dataMode == GFX_NOT_DEFINED) ? SPI_MODE0 : dataMode;
 
+  // Arduino core 3.3.6+: the divider needs the bus handle, which does not
+  // exist yet here; spiStartBus derives it from _div = 0 (upstream does the same).
+#if !defined(ESP_ARDUINO_VERSION) || (ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 3, 6))
   if (!_div)
   {
     _div = spiFrequencyToClockDiv(_speed);
   }
+#endif
 
   // set pin mode
   if (_dc != GFX_NOT_DEFINED)

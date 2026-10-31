@@ -1,6 +1,7 @@
 #include "services/route_cache_store.h"
 
 #include <Arduino.h>
+#include <esp_heap_caps.h>
 #include <FS.h>
 #include <LittleFS.h>
 #include <WebServer.h>
@@ -26,8 +27,28 @@ bool s_dirty = false;
 unsigned long s_last_flush_ms = 0;
 SemaphoreHandle_t s_fs_mutex = nullptr;
 
-/** Merge buffer for flush — must not live on loop task stack (~84 KB at 1500 rows). */
-Entry s_merged[config::kRouteCacheFileMaxEntries];
+/** Merge buffer for flush (~84 KB at 1500 rows). Too big for the loop task
+ *  stack and, as a static, it ate a quarter of internal RAM; it lives in PSRAM
+ *  and is allocated on first flush. */
+Entry* s_merged = nullptr;
+
+bool ensureMergeBuffer() {
+  if (s_merged != nullptr) {
+    return true;
+  }
+  const size_t bytes = sizeof(Entry) * config::kRouteCacheFileMaxEntries;
+  s_merged = static_cast<Entry*>(
+      heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  if (s_merged == nullptr) {
+    s_merged = static_cast<Entry*>(heap_caps_malloc(bytes, MALLOC_CAP_8BIT));
+  }
+  if (s_merged == nullptr) {
+    Serial.println("[route_cache] merge buffer alloc failed");
+    return false;
+  }
+  memset(s_merged, 0, bytes);
+  return true;
+}
 
 void ensureFsMutex() {
   if (s_fs_mutex == nullptr) {
@@ -414,7 +435,7 @@ void tick(unsigned long now_ms, ReadRamSlotFn read_slot, size_t max_slots,
     return;
   }
 
-  if (read_slot == nullptr || !ensureMounted()) {
+  if (read_slot == nullptr || !ensureMounted() || !ensureMergeBuffer()) {
     return;
   }
 

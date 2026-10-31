@@ -1,6 +1,9 @@
 #include "Arduino_ESP32RGBPanel.h"
 
-#if defined(ESP32) && (CONFIG_IDF_TARGET_ESP32S3)
+// IDF 4 only: these buses use private esp_lcd structs that changed in
+// Arduino core 3 / IDF 5 (same guard as upstream Arduino_GFX 1.4+).
+#if defined(ESP32) && (CONFIG_IDF_TARGET_ESP32S3) && \
+    ((!defined(ESP_ARDUINO_VERSION_MAJOR)) || (ESP_ARDUINO_VERSION_MAJOR < 3))
 
 Arduino_ESP32RGBPanel::Arduino_ESP32RGBPanel(
     int8_t de, int8_t vsync, int8_t hsync, int8_t pclk,

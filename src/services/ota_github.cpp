@@ -5,6 +5,7 @@
 #include <Preferences.h>
 #include <Update.h>
 #include <WiFi.h>
+#include <WiFiClient.h>
 #include <WiFiClientSecure.h>
 
 #include <ArduinoJson.h>
